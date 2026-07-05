@@ -20,9 +20,18 @@ export const WHATSAPP_REGEX = /^\+?[0-9][0-9\s().-]{6,17}$/
 const asEnum = <T extends readonly [string, ...string[]]>(values: T) =>
   z.enum(values)
 
+// Convertit '' / null en undefined : un <select> non renseigné renvoie ''.
+// Sans ça, '' est validé contre l'enum et affiche le message brut de Zod au
+// lieu du message français porté par la règle conditionnelle.
+const emptyToUndef = (v: unknown) => (v === '' || v == null ? undefined : v)
+
 // Enums dérivés des listes d'options (source unique de vérité).
-const profilEnum = z.enum(['encadreur', 'ambassadeur'])
-const vicariatEnum = asEnum(VICARIATS as unknown as [string, ...string[]])
+const profilEnum = z.enum(['encadreur', 'ambassadeur'], {
+  errorMap: () => ({ message: 'Veuillez choisir un profil' }),
+})
+const vicariatEnum = z.enum(VICARIATS as unknown as [string, ...string[]], {
+  errorMap: () => ({ message: 'Veuillez sélectionner votre vicariat' }),
+})
 const typeProduitEnum = asEnum(TYPES_PRODUIT as unknown as [string, ...string[]])
 const capaciteEnum = asEnum(
   CAPACITES_PRODUCTION as unknown as [string, ...string[]],
@@ -62,9 +71,12 @@ const communFields = {
 // Champs spécifiques (tous optionnels au niveau du type — la présence
 // obligatoire est imposée conditionnellement via superRefine).
 const encadreurFields = {
-  type_produit: typeProduitEnum.optional(),
+  // union avec '' : un <select> non renseigné renvoie '' (et non undefined).
+  // On l'accepte ici pour éviter le message brut de l'enum ; la présence
+  // obligatoire est imposée par la règle conditionnelle (message français).
+  type_produit: z.union([z.literal(''), typeProduitEnum]).optional(),
   description_produit: z.string().trim().optional(),
-  capacite_production: capaciteEnum.optional(),
+  capacite_production: z.union([z.literal(''), capaciteEnum]).optional(),
   besoin_rebranding: z.boolean().optional().default(false),
   lien_produit: z
     .string()
@@ -75,8 +87,8 @@ const encadreurFields = {
 
 const ambassadeurFields = {
   motivation_ambassadeur: z.string().trim().optional(),
-  reseau_estime: reseauEnum.optional(),
-  disponibilite: dispoEnum.optional(),
+  reseau_estime: z.union([z.literal(''), reseauEnum]).optional(),
+  disponibilite: z.union([z.literal(''), dispoEnum]).optional(),
   canaux_vente: z.array(canalEnum).optional().default([]),
 }
 
@@ -172,7 +184,6 @@ export type FormValues = z.input<typeof formSchema>
 // -----------------------------------------------------------------------------
 // Schéma SERVEUR — reçoit des chaînes (FormData). Coercition puis mêmes règles.
 // -----------------------------------------------------------------------------
-const emptyToUndef = (v: unknown) => (v === '' || v == null ? undefined : v)
 const toBool = (v: unknown) => v === 'true' || v === 'on' || v === true
 
 const parseCanaux = (v: unknown): unknown => {
