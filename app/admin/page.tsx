@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [filtreProfil, setFiltreProfil] = useState<'all' | Profil>('all')
   const [filtreStatut, setFiltreStatut] = useState<'all' | Statut>('all')
   const [selected, setSelected] = useState<Inscription | null>(null)
+  const [showStats, setShowStats] = useState(true)
 
   const fetchRows = useCallback(async (pw: string) => {
     setLoading(true)
@@ -106,7 +107,29 @@ export default function AdminPage() {
     }
     const { inscription } = await res.json()
     setRows((prev) => prev.map((r) => (r.id === id ? inscription : r)))
-    setSelected((prev) => (prev && prev.id === id ? inscription : prev))
+    setSelected(null) // fermer la modale après validation / rejet
+  }
+
+  async function supprimer(id: string) {
+    const pw = sessionStorage.getItem(PW_KEY)
+    if (!pw) return
+    if (
+      !window.confirm(
+        'Supprimer définitivement cette inscription (et sa photo) ? Cette action est irréversible.',
+      )
+    )
+      return
+    const res = await fetch('/api/admin/supprimer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, id }),
+    })
+    if (!res.ok) {
+      alert('Échec de la suppression.')
+      return
+    }
+    setRows((prev) => prev.filter((r) => r.id !== id))
+    setSelected(null)
   }
 
   function logout() {
@@ -168,6 +191,12 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowStats((s) => !s)}
+            className="fco-btn-ghost px-4 py-2 text-sm"
+          >
+            {showStats ? '▲ Statistiques' : '▼ Statistiques'}
+          </button>
+          <button
             onClick={() =>
               downloadCSV(filtered, `inscriptions-fco-${filtreProfil}-${filtreStatut}.csv`)
             }
@@ -180,6 +209,9 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {/* Statistiques */}
+      {showStats && <StatsPanel rows={rows} />}
 
       {/* Filtres */}
       <div className="mb-4 flex flex-wrap gap-3">
@@ -255,6 +287,7 @@ export default function AdminPage() {
           onClose={() => setSelected(null)}
           onValider={() => changerStatut(selected.id, 'valide')}
           onRejeter={() => changerStatut(selected.id, 'rejete')}
+          onSupprimer={() => supprimer(selected.id)}
         />
       )}
     </main>
@@ -279,11 +312,13 @@ function FicheModal({
   onClose,
   onValider,
   onRejeter,
+  onSupprimer,
 }: {
   inscription: Inscription
   onClose: () => void
   onValider: () => void
   onRejeter: () => void
+  onSupprimer: () => void
 }) {
   return (
     <div
@@ -383,7 +418,117 @@ function FicheModal({
             ✕ Rejeter
           </button>
         </div>
+
+        <button
+          onClick={onSupprimer}
+          className="mt-3 w-full rounded-xl border border-erreur/30 py-2.5 text-sm font-semibold text-erreur transition hover:bg-erreur/10"
+        >
+          🗑 Supprimer définitivement
+        </button>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------- Statistiques
+type Compte = { label: string; count: number }
+
+// Regroupe les lignes par clé (insensible à la casse), trié par effectif.
+function grouper(
+  rows: Inscription[],
+  getKey: (r: Inscription) => string | null | undefined,
+): Compte[] {
+  const map = new Map<string, Compte>()
+  for (const r of rows) {
+    const raw = (getKey(r) ?? '').toString().trim()
+    if (!raw) continue
+    const k = raw.toLowerCase()
+    const e = map.get(k)
+    if (e) e.count++
+    else map.set(k, { label: raw, count: 1 })
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count)
+}
+
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: string
+}) {
+  return (
+    <div className={`rounded-2xl p-4 ${tone}`}>
+      <div className="text-2xl font-bold leading-none">{value}</div>
+      <div className="mt-1 text-xs font-medium opacity-80">{label}</div>
+    </div>
+  )
+}
+
+function BarList({ title, data }: { title: string; data: Compte[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count))
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-card">
+      <h3 className="mb-3 text-sm font-semibold text-nuit">{title}</h3>
+      {data.length === 0 ? (
+        <p className="text-sm text-nuit/50">Aucune donnée</p>
+      ) : (
+        <ul className="space-y-2">
+          {data.map((d) => (
+            <li key={d.label}>
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                <span className="truncate text-nuit/80">{d.label}</span>
+                <span className="font-semibold text-nuit">{d.count}</span>
+              </div>
+              <div className="h-2 rounded-full bg-ciel">
+                <div
+                  className="h-2 rounded-full bg-madeb"
+                  style={{ width: `${(d.count / max) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function StatsPanel({ rows }: { rows: Inscription[] }) {
+  const total = rows.length
+  const enAttente = rows.filter((r) => r.statut === 'en_attente').length
+  const valides = rows.filter((r) => r.statut === 'valide').length
+  const rejetes = rows.filter((r) => r.statut === 'rejete').length
+  const encadreurs = rows.filter((r) => r.profil === 'encadreur').length
+  const ambassadeurs = rows.filter((r) => r.profil === 'ambassadeur').length
+
+  const parSecteur = grouper(rows, (r) => r.secteur_activite)
+  const parVicariat = grouper(rows, (r) => r.vicariat)
+  const parProfession = grouper(rows, (r) => r.profession)
+  const parTypeProduit = grouper(
+    rows.filter((r) => r.profil === 'encadreur'),
+    (r) => r.type_produit,
+  )
+
+  return (
+    <section className="mb-6 space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Total" value={total} tone="bg-nuit text-white" />
+        <StatCard label="En attente" value={enAttente} tone="bg-or/20 text-[#8a6d08]" />
+        <StatCard label="Validés" value={valides} tone="bg-succes/15 text-succes" />
+        <StatCard label="Rejetés" value={rejetes} tone="bg-erreur/15 text-erreur" />
+        <StatCard label="Encadreurs" value={encadreurs} tone="bg-madeb/10 text-madeb" />
+        <StatCard label="Ambassadeurs" value={ambassadeurs} tone="bg-madeb/10 text-madeb" />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <BarList title="Par secteur d'activité" data={parSecteur} />
+        <BarList title="Par vicariat" data={parVicariat} />
+        <BarList title="Par profession / métier" data={parProfession} />
+        <BarList title="Par type de produit (encadreurs)" data={parTypeProduit} />
+      </div>
+    </section>
   )
 }
