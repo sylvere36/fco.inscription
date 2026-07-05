@@ -1,6 +1,7 @@
 -- =============================================================================
 -- FOND COEUR D'OR (FCO) — Schéma Supabase
--- À exécuter dans : Supabase Dashboard > SQL Editor.
+-- À exécuter dans : Supabase Dashboard > SQL Editor (bouton "Run").
+-- Idempotent : peut être relancé sans risque.
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS inscriptions (
@@ -68,16 +69,20 @@ DROP POLICY IF EXISTS "update_service" ON inscriptions;
 CREATE POLICY "update_service" ON inscriptions
   FOR UPDATE USING (auth.role() = 'service_role');
 
+-- -----------------------------------------------------------------------------
+-- Rechargement du cache de schéma PostgREST
+-- (indispensable pour que l'API REST « voie » la table immédiatement).
+-- -----------------------------------------------------------------------------
+NOTIFY pgrst, 'reload schema';
+
 -- =============================================================================
 -- STORAGE — bucket public 'fco-photos'
--- Peut être créé via l'UI (Storage > New bucket, Public = true) OU via ce SQL.
+-- ⚠️ Déjà créé côté application. Le créer via SQL peut échouer selon les droits
+--    du SQL Editor ; en cas d'échec, le créer dans l'UI (Storage > New bucket,
+--    Public = true, 5 Mo, MIME image/jpeg,image/png,image/webp).
+--    Décommenter uniquement si le bucket n'existe pas encore :
+-- INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- VALUES ('fco-photos','fco-photos',true,5242880,
+--         ARRAY['image/jpeg','image/png','image/webp'])
+-- ON CONFLICT (id) DO NOTHING;
 -- =============================================================================
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'fco-photos',
-  'fco-photos',
-  true,
-  5242880, -- 5 Mo
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
-)
-ON CONFLICT (id) DO NOTHING;

@@ -10,6 +10,7 @@ import {
   MAX_PHOTO_SIZE,
   type FormValues,
 } from '@/lib/validations'
+import { PAROISSE_AUTRE } from '@/lib/vicariats'
 import { Stepper } from './Stepper'
 import { SectionProfil } from './SectionProfil'
 import { SectionCommune } from './SectionCommune'
@@ -24,6 +25,7 @@ const STEP1_FIELDS: (keyof FormValues)[] = [
   'email',
   'vicariat',
   'paroisse',
+  'paroisse_autre',
   'secteur_activite',
   'profession',
   'employeur',
@@ -51,6 +53,7 @@ const defaultValues = {
   email: '',
   vicariat: '',
   paroisse: '',
+  paroisse_autre: '',
   secteur_activite: '',
   profession: '',
   employeur: '',
@@ -77,8 +80,7 @@ export function FormulaireFCO() {
   const methods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     mode: 'onTouched',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    defaultValues: defaultValues as any,
+    defaultValues: defaultValues as unknown as FormValues,
   })
 
   const { handleSubmit, trigger, getValues, watch } = methods
@@ -128,7 +130,10 @@ export function FormulaireFCO() {
       append('whatsapp', v.whatsapp)
       append('email', v.email)
       append('vicariat', v.vicariat)
-      append('paroisse', v.paroisse)
+      // Résolution de la paroisse : « Autre » → valeur saisie librement.
+      const paroisseFinale =
+        v.paroisse === PAROISSE_AUTRE ? v.paroisse_autre : v.paroisse
+      append('paroisse', paroisseFinale)
       append('secteur_activite', v.secteur_activite)
       append('profession', v.profession)
       append('employeur', v.employeur)

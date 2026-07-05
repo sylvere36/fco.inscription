@@ -14,9 +14,10 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
 
     // 1. Extraire et valider les données texte
-    const raw = Object.fromEntries(
-      [...formData.entries()].filter(([, v]) => typeof v === 'string'),
-    )
+    const raw: Record<string, string> = {}
+    formData.forEach((value, key) => {
+      if (typeof value === 'string') raw[key] = value
+    })
     const parsed = inscriptionSchema.safeParse(raw)
     if (!parsed.success) {
       return NextResponse.json(

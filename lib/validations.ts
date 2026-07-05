@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { VICARIATS } from './vicariats'
+import { VICARIATS, PAROISSE_AUTRE } from './vicariats'
 import {
   TYPES_PRODUIT,
   CAPACITES_PRODUCTION,
@@ -47,7 +47,6 @@ const communFields = {
     .optional()
     .transform((v) => (v === '' ? undefined : v)),
   vicariat: vicariatEnum,
-  paroisse: z.string().trim().min(2, 'Veuillez renseigner votre paroisse'),
   secteur_activite: z
     .string()
     .trim()
@@ -143,13 +142,30 @@ function appliquerReglesConditionnelles(
 export const formSchema = z
   .object({
     ...communFields,
+    // Paroisse : choisie dans un menu dépendant du vicariat. La sentinelle
+    // PAROISSE_AUTRE révèle un champ libre `paroisse_autre`.
+    paroisse: z.string().min(1, 'Veuillez sélectionner votre paroisse'),
+    paroisse_autre: z.string().trim().optional(),
     ...encadreurFields,
     ...ambassadeurFields,
     consent: z.literal(true, {
       errorMap: () => ({ message: 'Vous devez certifier et accepter pour continuer' }),
     }),
   })
-  .superRefine(appliquerReglesConditionnelles)
+  .superRefine((data, ctx) => {
+    appliquerReglesConditionnelles(data, ctx)
+    if (data.paroisse === PAROISSE_AUTRE) {
+      const autre =
+        typeof data.paroisse_autre === 'string' ? data.paroisse_autre : ''
+      if (autre.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['paroisse_autre'],
+          message: 'Veuillez saisir le nom de votre paroisse',
+        })
+      }
+    }
+  })
 
 export type FormValues = z.input<typeof formSchema>
 
@@ -175,6 +191,8 @@ const parseCanaux = (v: unknown): unknown => {
 export const inscriptionSchema = z
   .object({
     ...communFields,
+    // Le client a déjà résolu « Autre » → texte libre ; on stocke une chaîne.
+    paroisse: z.string().trim().min(2, 'Veuillez renseigner votre paroisse'),
     type_produit: z.preprocess(emptyToUndef, typeProduitEnum.optional()),
     description_produit: z.preprocess(emptyToUndef, z.string().trim().optional()),
     capacite_production: z.preprocess(emptyToUndef, capaciteEnum.optional()),
