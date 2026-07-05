@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-ciel/40 text-nuit antialiased;
+  }
+}
+
+@layer components {
+  /* Champs de saisie — style commun sobre et mobile-first */
+  .fco-label {
+    @apply mb-1.5 block text-sm font-medium text-nuit;
+  }
+  .fco-input {
+    @apply w-full rounded-xl border border-nuit/15 bg-white px-4 py-3 text-base
+           text-nuit placeholder-nuit/40 shadow-sm outline-none transition
+           focus:border-madeb focus:ring-2 focus:ring-madeb/30;
+  }
+  .fco-input-error {
+    @apply border-erreur focus:border-erreur focus:ring-erreur/25;
+  }
+  .fco-error {
+    @apply mt-1.5 text-sm font-medium text-erreur;
+  }
+  .fco-hint {
+    @apply mt-1.5 text-sm text-nuit/50;
+  }
+
+  /* Boutons */
+  .fco-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3
+           text-base font-semibold transition disabled:cursor-not-allowed
+           disabled:opacity-60;
+  }
+  .fco-btn-primary {
+    @apply fco-btn bg-madeb text-white hover:bg-madeb/90 active:scale-[0.99]
+           focus:outline-none focus:ring-2 focus:ring-madeb/40;
+  }
+  .fco-btn-ghost {
+    @apply fco-btn border border-nuit/15 bg-white text-nuit hover:bg-ciel/60;
+  }
+}
